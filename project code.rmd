@@ -1,0 +1,377 @@
+```{r load-packages, message = FALSE}
+if (isFALSE("caret" %in% rownames(installed.packages()))) { install.packages("caret") }
+if (isFALSE("plyr" %in% rownames(installed.packages()))) { install.packages("plyr") }
+if (isFALSE("tidymodels" %in% rownames(installed.packages()))) { install.packages("tidymodels") }
+if (isFALSE("knitr" %in% rownames(installed.packages()))) { install.packages("knitr") }
+if (isFALSE("tidyverse" %in% rownames(installed.packages()))) { install.packages("tidyverse") }
+if (isFALSE("broom" %in% rownames(installed.packages()))) { install.packages("broom") }
+if (isFALSE("glmnet" %in% rownames(installed.packages()))) { install.packages("glmnet") }
+library(caret)
+library(plyr)
+library(tidymodels)
+library(knitr)
+library(tidyverse)
+library(broom)
+library(glmnet)
+```
+
+```{r loading}
+data12 <- haven::read_sav('./data/child_risk_t12.sav')
+data3 <- haven::read_sav('./data/3rd assessment.sav')
+```
+
+```{r selection}
+relevant_cols <- c('serial_number', 'ParentMeet', 'ParentPhone', 'FamilyTrust', 'FamilSupp',
+                   'Mentor', 'MentorFreq', 'FormalMentor', 'PnimiaTrust', 'PnimiaSupp',
+                   'HelpSeekInten1', 'HelpSeekInten2', 'V34', 'SenseCont1', 'SenseCont2',
+                   'SenseCont3', 'SenseCont4', 'SenseCont5', 'SenseCont6', 'B.SUPPORT_1',
+                   'B.SUPPORT_2', 'B.SUPPORT_3', 'B.SUPPORT_4', 'B.SUPPORT_5', 'B.SUPPORT_6',
+                   'B.CONTACT.DURATION', 'B.HELP.MENTAL', 'B.HELP.MENTAL.DEGREE', 'B.HELP.RELATIONS',
+                   'B.HELP.RELATIONS.DEGREE', 'B.HELP.NONPROFIT', 'B.HELP.NONPROFIT.DEGREE',
+                   'B.MAIN.OCCUPATION_1', 'B.MAIN.OCCUPATION_8', 'B.MAIN.OCCUPATION_9',
+                   'B.LONELY_1', 'B.LONELY_2', 'B.LONELY_3', 'B.LONELY_4', 'B.INTERNET.SUPPORT_3',
+                   'B.INTERNET.SUPPORT_4', 'T3_SRH', 'T3job_no', 'T3A8.wp.160', 'T3T314.10',
+                   'T3Adverse_Events_1', 'T3Adverse_Events_2', 'T3Adverse_Events_3',
+                   'T3Adverse_Events_4', 'T3Adverse_Events_5', 'T3Adverse_Events_6',
+                   'T3Adverse_Events_7', 'T3Adverse_Events_8', 'T3Adverse_Events_9',
+                   'T3Adverse_Events_10', 'T3_ACE_1', 'T3_ACE_2', 'T3_ACE_3', 'T3_ACE_4', 'T3_ACE_5',
+                   'T3_ACE_6', 'T3_ACE_7', 'T3_ACE_8', 'T3_ACE_9', 'T3housing_status',
+                   'T3army_fullservice', 'T3civil_service', 'T3civilserv_full', 'T3helpneeded_1',
+                   'T3helpneeded_2', 'T3helpneeded_3', 'T3helpneeded_4', 'T3helpneeded_5',
+                   'T3helpneeded_6', 'T3helpneeded_7', 'T3helpneeded_8', 'T3helpneeded_9',
+                   'T3_10.20', 'T3_10.120', 'T3_10.460_1', 'T3_10.460_2', 'T3_10.460_3',
+                   'T3_10.460_4', 'T3_socialsupport_1', 'T3_socialsupport_2', 'T3_socialsupport_3',
+                   'T3_socialsupport_4', 'T3_socialsupport_5', 'T3_socialsupport_6', 'T3_14.80',
+                   'T3_life_satisfaction_1', 'T3_life_satisfaction_2', 'T3_life_satisfaction_3',
+                   'T3_life_satisfaction_4', 'T3_life_satisfaction_5', 'T3_life_satisfaction_6',
+                   'T3_life_satisfaction_7', 'T3_skills_1', 'T3_skills_2', 'T3_skills_3',
+                   'T3_skills_4', 'T3_skills_5', 'T3_skills_6', 'T3_skills_7', 'T3_skills_8',
+                   'T3_skills_9', 'T3_skills_10', 'T3_skills_11', 'T3_skills_12', 'T3_skills_13',
+                   'T3_skills_14', 'T3_skills_15', 'T3_skills_16')
+
+flip_scale <- function(df, col_name) {
+  flip_factor <- max(df[col_name], na.rm = TRUE) + 1
+  for (row in seq_len(nrow(df))) {
+    if (is.na(df[row, col_name])) { next }
+    df[row, col_name] <- flip_factor - ifelse(df[row, col_name] >= 1,
+                                              round(df[row, col_name]), 1)
+  }
+  return(df)
+}
+flip_list <- c('ParentMeet', 'ParentPhone', 'T3_SRH', 'T3_14.80', 'T3_10.20', 'T3_10.120',
+               'T3army_fullservice', 'T3civilserv_full', 'T3Adverse_Events_1', 'T3Adverse_Events_2', 'T3Adverse_Events_3', 'T3Adverse_Events_4', 'T3Adverse_Events_5', 'T3Adverse_Events_6', 'T3Adverse_Events_7', 'T3Adverse_Events_8', 'T3Adverse_Events_9', 'T3Adverse_Events_10', 'T3_ACE_1', 'T3_ACE_2', 'T3_ACE_3', 'T3_ACE_4', 'T3_ACE_5', 'T3_ACE_6', 'T3_ACE_7', 'T3_ACE_8', 'T3_ACE_9')
+```
+
+```{r merging}
+data3$T3interviewee_number <- as.numeric(data3$T3interviewee_number)
+
+coalesce_by_column <- function(df) {
+  return(coalesce(!!!as.list(df)))
+}
+test_data3 <- data3 %>%
+  group_by(T3interviewee_number)
+sum_df <- summarise_all(test_data3, coalesce_by_column)
+```
+
+
+```{r cleaning}
+test_df <- sum_df
+test_df$T3job_no <- suppressWarnings(as.numeric(test_df$T3job_no))
+test_df <- test_df %>% rename(serial_number = T3interviewee_number)
+df123 <- test_df %>%
+  merge(data12, by = "serial_number") %>%
+  select(all_of(relevant_cols))
+for (col in flip_list) {
+  df123 <- flip_scale(df123, col)
+}
+for (col in seq_len(ncol(df123))) {
+  max_val <- floor(max(df123[col], na.rm = TRUE))
+  for (row in seq_len(nrow(df123))) {
+    if (is.na(df123[row, col])) { next }
+    if (1 <= df123[row, col]) {
+      if (df123[row, col] <= max_val) {
+        df123[row, col] <- round(df123[row, col])
+      }
+      else {
+        df123[row, col] <- max_val
+      }
+    }
+    else {
+      df123[row, col] <- 1
+    }
+  }
+}
+for (row in seq_len(nrow(df123))) {
+  if (df123[row, "B.HELP.MENTAL"] == 3) {
+    df123[row, "B.HELP.MENTAL"] <- 1
+    next
+  }
+  if (df123[row, "B.HELP.MENTAL"] == 2) {
+    df123[row, "B.HELP.MENTAL"] <- 3
+    next
+  }
+  if (df123[row, "B.HELP.MENTAL"] == 1) {
+    df123[row, "B.HELP.MENTAL"] <- 2
+  }
+
+}
+
+success_vars <- c('serial_number', 'T3A8.wp.160', 'T314.10', 'T3housing_status', 'T3army_fullservice',
+                  'T3civilserv_full', 'T3_10.20', 'T3_10.120', 'T3_14.80',
+                  'T3_life_satisfaction_1', 'T3_life_satisfaction_5', 'T3_life_satisfaction_6',
+                  'T3_life_satisfaction_7', 'T3_skills_4', 'T3_skills_8', 'T3_skills_11',
+                  'T3_skills_15')
+```
+
+```{r}
+all_x <- c('FormalMentor', 'T3Adverse_Events_1', 'T3Adverse_Events_2', 'T3Adverse_Events_3', 'T3Adverse_Events_4', 'T3Adverse_Events_5', 'T3Adverse_Events_6', 'T3Adverse_Events_7', 'T3Adverse_Events_8', 'T3Adverse_Events_9', 'T3Adverse_Events_10', 'T3_ACE_1', 'T3_ACE_2', 'T3_ACE_3', 'T3_ACE_4', 'T3_ACE_5', 'T3_ACE_6', 'T3_ACE_7', 'T3_ACE_8', 'T3_ACE_9', 'B.HELP.MENTAL', 'B.HELP.RELATIONS', 'B.HELP.NONPROFIT', 'FamilyTrust', 'PnimiaTrust', 'SenseCont3', 'SenseCont4', 'B.SUPPORT_4', 'B.SUPPORT_6', 'B.MAIN.OCCUPATION_8', 'B.LONELY_1', 'B.INTERNET.SUPPORT_3', 'B.INTERNET.SUPPORT_4')
+
+xdf <- df123 %>%
+  select(c('serial_number', all_of(all_x))) %>%
+  drop_na()
+clean_df <- df123 %>%
+  rename(T314.10 = 'T3T314.10') %>%
+  select(c("serial_number", all_of(success_vars))) %>%
+  mutate(T3army_fullservice = replace_na(T3army_fullservice, 1),
+         T3civilserv_full = replace_na(T3civilserv_full, 1),
+         T3A8.wp.160 = replace_na(T3A8.wp.160, 1)) %>%
+  drop_na() %>%
+  mutate(T314.10 = (T314.10 %% 11) + 1, T3A8.wp.160 = replace(T3A8.wp.160, T3A8.wp.160 == 1, 3))
+
+relevant_nums_x <- xdf$serial_number
+relevant_nums_y <- clean_df$serial_number
+```
+
+```{r normalization}
+norm_clean_df <- clean_df %>%
+  apply(2, FUN = function(x) (x - min(x)) / (max(x) - min(x))) %>%
+  as.data.frame() %>%
+  mutate(serial_number = relevant_nums_y)
+norm_xdf <- xdf %>%
+  apply(2, FUN = function(x) (x - min(x)) / (max(x) - min(x))) %>%
+  as.data.frame() %>%
+  mutate(serial_number = relevant_nums_x)
+```
+
+```{r}
+success_df <- norm_clean_df %>%
+  mutate(score =
+           T3A8.wp.160 * 0.03 +
+             T314.10 * 0.12 +
+             T3_14.80 * 0.14 +
+             T3_skills_8 * 0.06 + # money - 35%
+             T3army_fullservice * 0.15 +
+             T3civilserv_full * 0.15 + # service - 15%
+             T3_10.20 * 0.06 +
+             T3_10.120 * 0.06 +
+             T3_skills_11 * 0.08 + # social skills - 20%
+             T3_life_satisfaction_1 * 0.03 +
+             T3_life_satisfaction_5 * 0.03 +
+             T3_life_satisfaction_6 * 0.03 +
+             T3_life_satisfaction_7 * 0.06 + # happy - 15%
+             T3_skills_4 * 0.075 +
+             T3_skills_15 * 0.075 # misc - 15%
+  ) %>%
+  select(c('serial_number', 'score'))
+full_df <- norm_xdf %>%
+  join(success_df) %>%
+  drop_na()
+```
+
+```{r lassoreg}
+set.seed(24)
+y <- full_df$score
+x <- data.matrix(full_df[, all_x])
+cv_model <- cv.glmnet(x, y)
+best_lambda <- cv_model$lambda.min
+lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+tidy(lasso_model)
+```
+
+```{r multi_linear}
+general_linear <- lm(score ~ FamilyTrust +
+  PnimiaTrust +
+  SenseCont3 +
+  SenseCont4 +
+  B.SUPPORT_4 +
+  B.SUPPORT_6 +
+  B.MAIN.OCCUPATION_8 +
+  B.LONELY_1 +
+  B.INTERNET.SUPPORT_3 +
+  B.INTERNET.SUPPORT_4 +
+  FormalMentor +
+  T3Adverse_Events_1 +
+  T3Adverse_Events_2 +
+  T3Adverse_Events_3 +
+  T3Adverse_Events_4 +
+  T3Adverse_Events_5 +
+  T3Adverse_Events_6 +
+  T3Adverse_Events_7 +
+  T3Adverse_Events_8 +
+  T3Adverse_Events_9 +
+  T3Adverse_Events_10 +
+  T3_ACE_1 +
+  T3_ACE_2 +
+  T3_ACE_3 +
+  T3_ACE_4 +
+  T3_ACE_5 +
+  T3_ACE_6 +
+  T3_ACE_7 +
+  T3_ACE_8 +
+  T3_ACE_9 +
+  B.HELP.MENTAL +
+  B.HELP.RELATIONS +
+  B.HELP.NONPROFIT, data = full_df)
+summary(general_linear)
+```
+```{r good_linear}
+good_fit <- lm(score ~
+                 PnimiaTrust +
+                   B.SUPPORT_4 +
+                   B.INTERNET.SUPPORT_3 +
+                   T3_ACE_5 +
+                   B.HELP.MENTAL +
+                   B.INTERNET.SUPPORT_3
+  , data = full_df)
+summary(good_fit)
+```
+
+```{r logic}
+logic_df = full_df %>%
+  mutate(accomplished = ifelse(score > 0.7, 1, 0)) %>%
+  mutate(accomplished = factor(accomplished)) %>%
+  select(c('serial_number', 'PnimiaTrust', 'B.SUPPORT_4', 'B.INTERNET.SUPPORT_3', 'T3_ACE_1', 'T3_ACE_5', 'B.HELP.MENTAL', 'accomplished'))
+set.seed(24)
+logic_split <- initial_split(logic_df)
+logic_train <- training(logic_split)
+logic_test <- testing(logic_split)
+logireg <- logistic_reg() %>%
+  set_engine("glm")
+logic_rec <- recipe(accomplished ~ ., data = logic_df, family = "binomial") %>%
+  update_role(serial_number, new_role = "ID")
+logic_flow <- workflow() %>%
+  add_model(logireg) %>%
+  add_recipe(logic_rec)
+logic_fit <- logic_flow %>%
+  fit(logic_test)
+logic_test_pred <- predict(logic_fit, logic_test) %>%
+  bind_cols(logic_test %>% select(accomplished, serial_number)) %>%
+  mutate(.pred_class = as.numeric(.pred_class) - 1)
+print(auc_general <- logic_test_pred %>%
+  roc_auc(
+    truth = accomplished,
+    .pred_class,
+    event_level = 'second'
+  ))
+```
+
+
+```{r trauma}
+logic_df_trauma = full_df %>%
+  mutate(accomplished = ifelse(score > 0.7, 1, 0)) %>%
+  mutate(accomplished = factor(accomplished)) %>%
+  select(c('serial_number', 'T3_ACE_1', 'T3_ACE_5', 'accomplished'))
+set.seed(24)
+logic_split_trauma <- initial_split(logic_df_trauma)
+logic_train_trauma <- training(logic_split_trauma)
+logic_test_trauma <- testing(logic_split_trauma)
+logireg <- logistic_reg() %>%
+  set_engine("glm")
+logic_rec_trauma <- recipe(accomplished ~ ., data = logic_df_trauma, family = "binomial") %>%
+  update_role(serial_number, new_role = "ID")
+logic_flow_trauma <- workflow() %>%
+  add_model(logireg) %>%
+  add_recipe(logic_rec_trauma)
+logic_fit_trauma <- logic_flow_trauma %>%
+  fit(logic_test_trauma)
+logic_test_pred_trauma <- predict(logic_fit_trauma, logic_test_trauma) %>%
+  bind_cols(logic_test_trauma %>% select(accomplished, serial_number)) %>%
+  mutate(.pred_class = as.numeric(.pred_class) - 1)
+print(auc_trauma <- logic_test_pred %>%
+  roc_auc(
+    truth = accomplished,
+    .pred_class,
+    event_level = 'second'
+  ))
+```
+
+```{r trust}
+logic_df_trust = full_df %>%
+  mutate(accomplished = ifelse(score > 0.7, 1, 0)) %>%
+  mutate(accomplished = factor(accomplished)) %>%
+  select(c('serial_number', 'B.SUPPORT_4', 'PnimiaTrust', 'accomplished'))
+set.seed(24)
+logic_split_trust <- initial_split(logic_df_trust)
+logic_train_trust <- training(logic_split_trust)
+logic_test_trust <- testing(logic_split_trust)
+logic_rec_trust <- recipe(accomplished ~ ., data = logic_df_trust, family = "binomial") %>%
+  update_role(serial_number, new_role = "ID")
+logic_flow_trust <- workflow() %>%
+  add_model(logireg) %>%
+  add_recipe(logic_rec_trust)
+logic_fit_trust <- logic_flow_trust %>%
+  fit(logic_test_trust)
+logic_test_pred_trust <- predict(logic_fit_trust, logic_test_trust) %>%
+  bind_cols(logic_test_trust %>% select(accomplished, serial_number)) %>%
+  mutate(.pred_class = as.numeric(.pred_class) - 1)
+print(auc_trust <- logic_test_pred_trust %>%
+  roc_auc(
+    truth = accomplished,
+    .pred_class,
+    event_level = 'second'
+  ))
+logic_test_pred_trust
+```
+
+```{r help}
+logic_df_help = full_df %>%
+  mutate(accomplished = ifelse(score > 0.7, 1, 0)) %>%
+  mutate(accomplished = factor(accomplished)) %>%
+  select(c('serial_number', 'B.HELP.MENTAL', 'B.INTERNET.SUPPORT_3', 'accomplished'))
+set.seed(24)
+logic_split_help <- initial_split(logic_df_help)
+logic_train_help <- training(logic_split_help)
+logic_test_help <- testing(logic_split_help)
+logic_rec_help <- recipe(accomplished ~ ., data = logic_df_help, family = "binomial") %>%
+  update_role(serial_number, new_role = "ID")
+logic_flow_help <- workflow() %>%
+  add_model(logireg) %>%
+  add_recipe(logic_rec_help)
+logic_fit_help <- logic_flow_help %>%
+  fit(logic_test_help)
+logic_test_pred_help <- predict(logic_fit_help, logic_test_help) %>%
+  bind_cols(logic_test_help %>% select(accomplished, serial_number)) %>%
+  mutate(.pred_class = as.numeric(.pred_class) - 1)
+print(auc_help <- logic_test_pred_help %>%
+  roc_auc(
+    truth = accomplished,
+    .pred_class,
+    event_level = 'second'
+  ))
+```
+
+```{r}
+Aspects <- c('trauma', 'trust', 'help', 'general')
+AUC <- c(auc_trauma$.estimate, auc_trust$.estimate, auc_help$.estimate, auc_general$.estimate)
+auc_df <- data.frame(Aspects, AUC)
+ggplot(auc_df) +
+  geom_bar(aes(x = Aspects, y = AUC), stat = "identity", fill = "skyblue2") +
+  geom_bar(aes(x = Aspects, y = c(1, 1, 1, 1)), stat = "identity", fill = "cyan", alpha = 0.1) +
+  coord_cartesian(ylim = c(0.5, 1)) +
+  labs(title = "AUC For Each Aspect", subtitle = "Area under the curve of ROC to evaluate the logistic regressions") +
+  theme_minimal()
+```
+
+```{r}
+confmat = confusionMatrix(factor(logic_test_pred$.pred_class), factor(logic_test_pred$accomplished))
+ggplot(data = as.data.frame(confmat$table), mapping = aes(x = Reference, y = Prediction)) +
+  geom_tile(colour = "white", fill = c("limegreen", "firebrick2", "firebrick2", "limegreen")) +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1, size = 10) +
+  scale_x_discrete(labels = c("1" = "Accomplished", "0" = "Not Accomplished"), limits = rev, position = "top") +
+  scale_y_discrete(labels = c("1" = "Accomplished", "0" = "Not Accomplished")) +
+  labs(title = "Confusion Matrix for the General Logistic Regression", x = "Actual Values", y = "Predicted Values") +
+  theme_bw() +
+  theme(legend.position = "none", axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+```
+
+
